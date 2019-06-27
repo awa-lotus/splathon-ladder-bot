@@ -1,9 +1,8 @@
-var channelId = 'GK6TV32QM' // コマンドを使用するチャンネルID。適宜編集してください。#ladder3-captains シーズン毎に保守
+var channelId = PropertiesService.getScriptProperties().getProperty('CHANNEL_ID'); // コマンドを使用するチャンネルID。適宜編集してください。#ladder3-captains シーズン毎に保守
 var token = PropertiesService.getScriptProperties().getProperty('OAuth_token');
-var masterSheet = SpreadsheetApp.openById('18tyoUiZZCCa1AVb7u9YrBBrr6YsODtmZ4oEMNJom6JQ'); // Master //シーズン毎に保守
-var entryMasterSheet = SpreadsheetApp.openById('1ZQZKjhPijIHc9dKBeLsMZ-GlNueqK8Afh_q5FRLNhTU'); // Master //シーズン毎に保守
-var targetSheetName = 'Challenges@R3'; //ラウンド毎に保守
-// var spreadsheet = SpreadsheetApp.openById('1vSL5mFDbg45o7SMiUMmqmNzNQk7IN4AS5oI3h3nYOrE'); // Debug
+var masterSheet = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('MASTER_SHEET_ID')); // Master //シーズン毎に保守
+var entryMasterSheet = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('ENTRY_SHEET_ID')); // Master //シーズン毎に保守
+var targetSheetName = PropertiesService.getScriptProperties().getProperty('TARGET_SHEET_NAME'); //ラウンド毎に保守
 
 function doPost(e) {
   var verified_token = PropertiesService.getScriptProperties().getProperty('verified_token');
@@ -107,7 +106,6 @@ function getDisplayName(e) {
 }
 
 function getTeamName(sheet, displayName) {
-  // displayName = 'しらたま'; // Debug
   const LastRow = sheet.getLastRow();
   const rangeS = 'D2:Q' + LastRow;
   var range = sheet.getRange(rangeS);
