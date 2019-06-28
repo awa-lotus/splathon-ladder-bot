@@ -3,19 +3,18 @@ var token = PropertiesService.getScriptProperties().getProperty('OAuth_token');
 var masterSheet = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('MASTER_SHEET_ID')); // Master //シーズン毎に保守
 var entryMasterSheet = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('ENTRY_SHEET_ID')); // Master //シーズン毎に保守
 var targetSheetName = PropertiesService.getScriptProperties().getProperty('TARGET_SHEET_NAME'); //ラウンド毎に保守
+// var spreadsheet = SpreadsheetApp.openById('1vSL5mFDbg45o7SMiUMmqmNzNQk7IN4AS5oI3h3nYOrE'); // Debug
 
 function doPost(e) {
   var verified_token = PropertiesService.getScriptProperties().getProperty('verified_token');
   var verificationToken = e.parameter.token || JSON.parse(e.parameter.payload).token || null;
   
-  if (verificationToken !== verified_token) {
-    console.log(e);
+  if (verificationToken !== verified_token)
     return ContentService.createTextOutput();
-  }
       
   if (e.parameter.command === '/add-ladder-schedule' && e.parameter.channel_id !== channelId) {
 
-    return ContentService.createTextOutput(JSON.stringify(getErrorJson('inavailable_channele'))).setMimeType(ContentService.MimeType.JSON);
+    return errorResponse('inavailable_channele');
     
   } else if (e.parameter.command === '/add-ladder-schedule') {
     
@@ -23,19 +22,19 @@ function doPost(e) {
     
     var entrySheet = entryMasterSheet.getSheets()[0]; // フォームの回答なのでこっちはindexでいいはず
     if (!entrySheet)
-      return ContentService.createTextOutput(JSON.stringify(getErrorJson('not_exist_entry_sheet'))).setMimeType(ContentService.MimeType.JSON); 
+      return errorResponse('not_exist_entry_sheet');
     
     var teamName = getTeamName(entrySheet, displayName);
     if (teamName.equals('none'))
-      return ContentService.createTextOutput(JSON.stringify(getErrorJson('not_entry'))).setMimeType(ContentService.MimeType.JSON); 
+      return errorResponse('not_entry');
     
     var challengesSheet = masterSheet.getSheetByName(targetSheetName); // シートの取得をindexにするかシート名で直接にするか...うまく運用できるならindexの方が保守は減る予想
     if (!challengesSheet)
-      return ContentService.createTextOutput(JSON.stringify(getErrorJson('not_exist_challenge_sheet'))).setMimeType(ContentService.MimeType.JSON); 
+      return errorResponse('not_exist_challenge_sheet');
     
     var matchList = getMatchList(challengesSheet, teamName); 
     if (matchList[Object.keys(matchList)[0]].length === 0)
-      return ContentService.createTextOutput(JSON.stringify(getErrorJson('not_exist_match'))).setMimeType(ContentService.MimeType.JSON); 
+      return errorResponse('not_exist_match'); 
       
     var createdDialog = createDialog(e, matchList);
     var headers = { "Authorization": "Bearer " + token };
@@ -53,36 +52,15 @@ function doPost(e) {
     
   } else {
     var p = JSON.parse(decodeURIComponent(e.parameter.payload));
-    var s = p.submission;
-    
-    setDateToMasterSheet(s);
-
-    // ダイアログでサブミットボタンを押したときの処理
     var url = p.response_url;
     
     var payload = {
       "response_type": "ephemeral",
       "replace_original": false,
       "attachments": [{
-        "color": "#36a64f",
-        "pretext": "以下の情報で登録しました",
-        "fields": [
-          {
-            "title": "チーム名",
-            "value": s.name,
-            "short": false
-          },
-          {
-            "title": "対戦カード",
-            "value": s.matchLabel,
-            "short": false
-          },
-          {
-            "title": "対戦予定日時",
-            "value": s.date,
-            "short": false
-          }
-        ]
+        "color": "danger",
+        "pretext": "不明なエラーが発生しました。運営までお問い合わせください",
+        "fields": []
       }]
     }
 
@@ -92,9 +70,8 @@ function doPost(e) {
       "payload" : JSON.stringify(payload)
     };
 
-    response = UrlFetchApp.fetch(url, options);
+    var response = UrlFetchApp.fetch(url, options);
     return ContentService.createTextOutput(JSON.stringify(response)).setMimeType(ContentService.MimeType.JSON);
-    
   }
 }
 
@@ -106,6 +83,7 @@ function getDisplayName(e) {
 }
 
 function getTeamName(sheet, displayName) {
+  // displayName = 'しらたま'; // Debug
   const LastRow = sheet.getLastRow();
   const rangeS = 'D2:Q' + LastRow;
   var range = sheet.getRange(rangeS);
@@ -161,7 +139,7 @@ function createDialog(e, matchList){
     "token": token,
     "trigger_id": trigger_id,
     "dialog": JSON.stringify({
-      "callback_id": "ladder_match_dialog",
+      "callback_id": "ladder_register_match_date",
       "title": "Ladder対戦予定日時登録フォーム",
       "submit_label": "登録する",
       "elements": [
@@ -201,21 +179,6 @@ function getOptions(matchList) {
   return options;
 }
 
-function setDateToMasterSheet(s) {
-  const challengesSheet = masterSheet.getSheetByName(targetSheetName);
-  const LastRow = challengesSheet.getLastRow();
-  const rangeS = 'A2:A' + LastRow;
-  var range = challengesSheet.getRange(rangeS);
-  var matchId = s.matchLabel.split(' ')[0];
-  
-  for(var i=0; i<LastRow-1; i++){
-    if (range.getValues()[i][0].equals(matchId)) {
-      challengesSheet.getRange(i+2,2).setValue(s.date);
-      break;
-    }
-  }
-}
-
 function getErrorJson(errorType) {
   var errorJsonText = 'error';
   switch (errorType) {
@@ -238,4 +201,8 @@ function getErrorJson(errorType) {
       
   }
   return {"response_type": "ephemeral","text": errorJsonText};
+}
+  
+function errorResponse(errorType) {
+  return ContentService.createTextOutput(JSON.stringify(getErrorJson(errorType))).setMimeType(ContentService.MimeType.JSON); 
 }
