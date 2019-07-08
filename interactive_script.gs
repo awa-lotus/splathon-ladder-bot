@@ -73,6 +73,36 @@ function setScoreToMasterSheet(s) {
   }
 }
 
+function getChallengeTeamName(s) {
+  const challengesSheet = masterSheet.getSheetByName(targetSheetName);
+  const LastRow = challengesSheet.getLastRow();
+  const rangeS = 'A2:A' + LastRow;
+  var range = challengesSheet.getRange(rangeS);
+  var matchId = s.matchLabel.split(' ')[0];
+  
+  for(var i=0; i<LastRow-1; i++){
+    if (range.getValues()[i][0].equals(matchId)) {
+      return challengesSheet.getRange(i+2,4).getValue();
+      break;
+    }
+  }
+}
+
+function getDefenceTeamName(s) {
+  const challengesSheet = masterSheet.getSheetByName(targetSheetName);
+  const LastRow = challengesSheet.getLastRow();
+  const rangeS = 'A2:A' + LastRow;
+  var range = challengesSheet.getRange(rangeS);
+  var matchId = s.matchLabel.split(' ')[0];
+  
+  for(var i=0; i<LastRow-1; i++){
+    if (range.getValues()[i][0].equals(matchId)) {
+      return challengesSheet.getRange(i+2,7).getValue();
+      break;
+    }
+  }
+}
+
 function registerMatchDate(payload) {
   var submission = payload.submission;
   
@@ -112,7 +142,7 @@ function registerMatchScore(payload) {
   setScoreToMasterSheet(submission);
   
   var payload = {
-    "response_type": "ephemeral",
+    "response_type": "in_channel",
     "replace_original": false,
     "attachments": [{
       "color": "#36a64f",
@@ -129,12 +159,12 @@ function registerMatchScore(payload) {
           "short": false
         },
         {
-          "title": "挑戦側:" + submission.matchLabel.split(" ")[2] + " のスコア",
+          "title": "挑戦側:" + getChallengeTeamName(submission) + " のスコア",
           "value": submission.score_c,
           "short": false
         },
         {
-          "title": "防衛側:" + submission.matchLabel.split(" ")[5] + " のスコア",
+          "title": "防衛側:" + getDefenceTeamName(submission) + " のスコア",
           "value": submission.score_d,
           "short": false
         }
