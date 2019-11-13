@@ -1,9 +1,8 @@
-var channelId = PropertiesService.getScriptProperties().getProperty('CHANNEL_ID'); // #ladder
 var token = PropertiesService.getScriptProperties().getProperty('OAuth_token');
-var masterSheet = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('MASTER_SHEET_ID')); // Master //シーズン毎に保守
-var entryMasterSheet = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('ENTRY_SHEET_ID')); // Master //シーズン毎に保守
-var targetSheetName = PropertiesService.getScriptProperties().getProperty('TARGET_SHEET_NAME'); //ラウンド毎に保守
-// var spreadsheet = SpreadsheetApp.openById('1vSL5mFDbg45o7SMiUMmqmNzNQk7IN4AS5oI3h3nYOrE'); // Debug
+var mastarData = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('MASTER_DATA_SHEET_ID'));
+var channelId = '';
+var entrySheetId = '';
+var challengeSheetId = '';
 
 function doPost(e) {
   var verified_token = PropertiesService.getScriptProperties().getProperty('verified_token');
@@ -11,16 +10,18 @@ function doPost(e) {
   
   if (verificationToken !== verified_token)
     return ContentService.createTextOutput();
+  
+  initIds();
 
-  if (e.parameter.command === '/set-ladder-score' && e.parameter.channel_id !== channelId) {
+  if (e.parameter.command === '/ladder-set-score' && e.parameter.channel_id !== channelId) {
 
     return errorResponse('inavailable_channele');
     
-  } else if (e.parameter.command === '/set-ladder-score') {
+  } else if (e.parameter.command === '/ladder-set-score') {
     
     var displayName = getDisplayName(e);
     
-    var entrySheet = entryMasterSheet.getSheets()[0]; // フォームの回答なのでこっちはindexでいいはず
+    var entrySheet = SpreadsheetApp.openById(entrySheetId).getSheets()[0];
     if (!entrySheet)
       return errorResponse('not_exist_entry_sheet');
     
@@ -28,7 +29,8 @@ function doPost(e) {
     if (teamName.equals('none'))
       return errorResponse('not_entry');
     
-    var challengesSheet = masterSheet.getSheetByName(targetSheetName); // シートの取得をindexにするかシート名で直接にするか...うまく運用できるならindexの方が保守は減る予想
+    var currentRound = getCurrentRound();
+    var challengesSheet = SpreadsheetApp.openById(challengeSheetId).getSheetByName(PropertiesService.getScriptProperties().getProperty('CHALLENGES_SHEET_PREFIX') + currentRound);
     if (!challengesSheet)
       return errorResponse('not_exist_challenge_sheet');
     
@@ -36,7 +38,7 @@ function doPost(e) {
     if (matchList[Object.keys(matchList)[0]].length === 0)
       return errorResponse('not_exist_match');
       
-    var createdDialog = createDialog(e, matchList);
+    var createdDialog = createDialog(e, matchList, currentRound);
     var headers = { "Authorization": "Bearer " + token };
     
     var options = {
@@ -85,9 +87,9 @@ function getDisplayName(e) {
 }
 
 function getTeamName(sheet, displayName) {
-  // displayName = 'しらたま'; // Debug
+  // displayName = 'soishi'; // Debug
   const LastRow = sheet.getLastRow();
-  const rangeS = 'D2:Q' + LastRow;
+  const rangeS = 'D2:M' + LastRow;
   var range = sheet.getRange(rangeS);
   const columnSize = range.getValues()[0].length
   var isBreak = false;
@@ -118,7 +120,6 @@ function getMatchList(sheet, teamName) {
   const LastRow = sheet.getLastRow();
   const rangeS = 'A2:G' + LastRow;
   var range = sheet.getRange(rangeS);
-  const columnSize = range.getValues()[0].length
   var isBreak = false;
   var matchListHash = {};
   matchListHash[teamName] = []
@@ -134,7 +135,7 @@ function getMatchList(sheet, teamName) {
   return matchListHash;
 }
 
-function createDialog(e, matchList){
+function createDialog(e, matchList, currentRound){
   var trigger_id = e.parameter.trigger_id;
   var options = getOptions(matchList);
   var dialog = {
@@ -145,6 +146,12 @@ function createDialog(e, matchList){
       "title": "Ladder対戦結果登録フォーム",
       "submit_label": "登録する",
       "elements": [
+        {
+          "type": "text",
+          "label": "現在のラウンド(そのままでお願いします)",
+          "name": "round",
+          "value": currentRound
+        },
         {
           "type": "text",
           "label": "あなたのチーム名(そのままでお願いします)",
@@ -187,11 +194,30 @@ function getOptions(matchList) {
   return options;
 }
 
+function initIds(){
+  var currentSeason = mastarData.getSheetByName('Current Season/Round').getRange('C2').getValue();
+  var sheetMaster = mastarData.getSheetByName('MasterSheetID');
+  const LAST_ROW_NUM = sheetMaster.getLastRow();
+  var range = sheetMaster.getRange('A2:D'+LAST_ROW_NUM);
+  
+  for(var i=0; i<LAST_ROW_NUM-1; i++) {
+    if(range.getValues()[i][0] == currentSeason) {
+      challengeSheetId = range.getValues()[i][1];
+      entrySheetId = range.getValues()[i][2];
+    }
+  }
+  channelId = mastarData.getSheetByName('BasicInfo').getRange('B2').getValue();
+}
+
+function getCurrentRound() {
+  return mastarData.getSheetByName('Current Season/Round').getRange('D2').getValue();
+}
+
 function getErrorJson(errorType) {
   var errorJsonText = 'error';
   switch (errorType) {
     case 'inavailable_channele':
-      errorJsonText = '/set-ladder-scoreコマンドは#ladderチャンネルでのみ使用可能です';
+      errorJsonText = '/ladder-set-scoreコマンドは#ladderチャンネルでのみ使用可能です';
       break;
     case 'not_exist_entry_sheet':
       errorJsonText = 'エントリーシートが見つかりませんでした。用意されるまでお待ちください';
@@ -200,7 +226,8 @@ function getErrorJson(errorType) {
       errorJsonText = '最新のチャレンジシートが見つかりませんでした。用意されるまでお待ちください';
       break;
     case 'not_entry':
-      errorJsonText = 'あなたはLadder#3にエントリーされていません！問い合わせの場合は運営まで';
+      var currentSeason = mastarData.getSheetByName('Current Season/Round').getRange('C2').getValue();
+      errorJsonText = 'あなたはLadder#' + currentSeason + 'にエントリーされていません！問い合わせの場合は運営まで';
       break;
     case 'not_exist_match':
       errorJsonText = '対戦カードが見つかりませんでした。問い合わせの場合は運営まで';
